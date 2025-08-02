@@ -1,28 +1,34 @@
 import streamlit as st
+import openai
 
-# Title
+# App config
 st.set_page_config(page_title="LLM Hallucination Risk Detector")
 st.title("LLM Hallucination Risk Detector")
 
-# User prompt input
+# Get user input
 user_input = st.text_area("Enter your prompt")
 
-# If user enters a prompt
+# Load OpenAI API key from secrets
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+
 if user_input:
-    # Simulated response from LLM (this will later call OpenAI/HuggingFace etc.)
-    response = "The moon is made of cheese, confirmed by NASA in 2023."
+    with st.spinner("Generating response..."):
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": user_input}],
+                temperature=0.7,
+                max_tokens=200
+            )
 
-    # Simulated risk analysis (for now, always high)
-    hallucination_score = "High"
-    ethics_flag = "Ethically Risky"
+            output = response['choices'][0]['message']['content']
 
-    # Display
-    st.subheader("Generated LLM Response")
-    st.write(response)
+            st.subheader("Generated LLM Response")
+            st.write(output)
 
-    st.subheader("Risk Analysis")
-    if hallucination_score == "High":
-        st.warning("⚠️ High Hallucination Risk Detected")
+            st.subheader("Risk Analysis (Demo)")
+            st.warning("⚠️ Possible Hallucination – Not Verified")
+            st.error("🚨 Ethical Risk Detected (Demo Placeholder)")
 
-    if ethics_flag == "Ethically Risky":
-        st.error("🚨 Ethically Sensitive or Biased Content Detected")
+        except Exception as e:
+            st.error(f"OpenAI API Error: {e}")
