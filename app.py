@@ -5,23 +5,23 @@ import openai
 st.set_page_config(page_title="LLM Hallucination Risk Detector")
 st.title("LLM Hallucination Risk Detector")
 
-# Get user input
+# Load OpenAI key securely from Streamlit Secrets
+client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+# User input
 user_input = st.text_area("Enter your prompt")
 
-# Load OpenAI API key from secrets
-openai.api_key = st.secrets["OPENAI_API_KEY"]
-
+# Send to OpenAI and display result
 if user_input:
     with st.spinner("Generating response..."):
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": user_input}],
                 temperature=0.7,
                 max_tokens=200
             )
-
-            output = response['choices'][0]['message']['content']
+            output = response.choices[0].message.content
 
             st.subheader("Generated LLM Response")
             st.write(output)
