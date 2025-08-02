@@ -1,19 +1,28 @@
 import streamlit as st
 
-st.set_page_config(page_title="Ethical Hallucination Flagger")
-
+# Title
+st.set_page_config(page_title="LLM Hallucination Risk Detector")
 st.title("LLM Hallucination Risk Detector")
 
+# User prompt input
 user_input = st.text_area("Enter your prompt")
 
+# If user enters a prompt
 if user_input:
-    # In the real app, you'd query the LLM here
-    fake_response = "The moon is made of cheese. NASA confirms it."
+    # Simulated response from LLM (this will later call OpenAI/HuggingFace etc.)
+    response = "The moon is made of cheese, confirmed by NASA in 2023."
 
-    st.subheader("LLM Response")
-    st.write(fake_response)
+    # Simulated risk analysis (for now, always high)
+    hallucination_score = "High"
+    ethics_flag = "Ethically Risky"
 
-    # Simulated hallucination and ethics score
+    # Display
+    st.subheader("Generated LLM Response")
+    st.write(response)
+
     st.subheader("Risk Analysis")
-    st.warning("⚠️ High Hallucination Risk")
-    st.error("🚨 Ethically Sensitive Content Detected")
+    if hallucination_score == "High":
+        st.warning("⚠️ High Hallucination Risk Detected")
+
+    if ethics_flag == "Ethically Risky":
+        st.error("🚨 Ethically Sensitive or Biased Content Detected")
