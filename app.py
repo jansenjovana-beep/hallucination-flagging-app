@@ -1,3 +1,5 @@
+st.set_page_config(page_title="LLM Hallucination Risk Detector", layout="wide", initial_sidebar_state="expanded")
+
 import streamlit as st
 import openai
 import requests
@@ -271,3 +273,4 @@ if submitted and user_input:
 
         except Exception as e:
             st.error(f"Error while calling {model_choice}: {e}")
+
