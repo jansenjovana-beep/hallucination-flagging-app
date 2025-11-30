@@ -12,7 +12,6 @@ st.title("LLM Hallucination Risk Detector")
 openai_client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Hugging Face Llama endpoint
-# You can change to another Llama model if you want, but keep it an instruct/chat model
 HF_API_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3-8b-instruct"
 HF_HEADERS = {"Authorization": f"Bearer {st.secrets['HF_TOKEN']}"}
 
@@ -41,9 +40,9 @@ def call_llama(prompt: str) -> str:
     res.raise_for_status()
     data = res.json()
 
-    # HF returns a list of dicts like: [{"generated_text": "..."}]
+
     if isinstance(data, list) and len(data) > 0 and "generated_text" in data[0]:
-        # generated_text usually includes the prompt + completion; strip the prompt if you like
+       
         full_text = data[0]["generated_text"]
         # Simple heuristic: return everything after the original prompt
         if full_text.startswith(prompt):
@@ -80,10 +79,11 @@ if user_input:
             st.subheader(f"Generated LLM Response ({model_used})")
             st.write(output)
 
-            # --- still just placeholders for now (you'll replace later with real logic) ---
+          
             st.subheader("Risk Analysis (Demo)")
             st.warning("⚠️ Possible Hallucination – Not Verified (placeholder)")
             st.error("🚨 Ethical Risk Detected (Demo Placeholder)")
 
         except Exception as e:
             st.error(f"Error calling {model_choice}: {e}")
+
