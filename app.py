@@ -183,9 +183,11 @@ model_choice = st.radio(
     horizontal=True,
 )
 
-user_input = st.text_area("Enter your prompt", height=150)
+with st.form("prompt_form", clear_on_submit=False):
+    user_input = st.text_area("Enter your prompt", height=150)
+    submitted = st.form_submit_button("Submit")
 
-if user_input:
+if submitted and user_input:
     with st.spinner("Generating response..."):
         try:
             if model_choice.startswith("GPT-3.5"):
@@ -269,3 +271,4 @@ if user_input:
 
         except Exception as e:
             st.error(f"Error while calling {model_choice}: {e}")
+
