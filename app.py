@@ -8,6 +8,7 @@ from collections import Counter
 # Streamlit UI Setup
 # --------------------------------------------------
 st.set_page_config(page_title="LLM Hallucination Risk Detector", layout="wide", initial_sidebar_state="expanded")
+st.title("Evaluation: Hallucination & Ethical Risk Detection")
 
 # --------------------------------------------------
 # API clients / configuration
@@ -270,5 +271,6 @@ if submitted and user_input:
 
         except Exception as e:
             st.error(f"Error while calling {model_choice}: {e}")
+
 
 
