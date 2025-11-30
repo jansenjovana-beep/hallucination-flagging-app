@@ -242,6 +242,7 @@ if user_input:
 
         except Exception as e:
             st.error(f"Error while calling {model_choice}: {e}")
-model_choice}: {e}")
+
+
 
 
