@@ -1,5 +1,3 @@
-st.set_page_config(page_title="LLM Hallucination Risk Detector", layout="wide", initial_sidebar_state="expanded")
-
 import streamlit as st
 import openai
 import requests
@@ -9,8 +7,7 @@ from collections import Counter
 # --------------------------------------------------
 # Streamlit UI Setup
 # --------------------------------------------------
-st.set_page_config(page_title="LLM Hallucination Risk Detector", layout="wide")
-st.title("LLM Hallucination Risk Detector")
+st.set_page_config(page_title="LLM Hallucination Risk Detector", layout="wide", initial_sidebar_state="expanded")
 
 # --------------------------------------------------
 # API clients / configuration
@@ -273,4 +270,5 @@ if submitted and user_input:
 
         except Exception as e:
             st.error(f"Error while calling {model_choice}: {e}")
+
 
