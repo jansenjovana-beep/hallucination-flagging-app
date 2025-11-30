@@ -3,109 +3,100 @@ import openai
 import requests
 import re
 from collections import Counter
-from typing import Optional
+from detoxify import Detoxify
 
 # --------------------------------------------------
-# App config
+# Streamlit UI Setup
 # --------------------------------------------------
 st.set_page_config(page_title="LLM Hallucination Risk Detector", layout="wide")
 st.title("LLM Hallucination Risk Detector")
 
 # --------------------------------------------------
-# API clients / config
+# API Clients
 # --------------------------------------------------
-# OpenAI (GPT-3.5)
+
+# 1. OpenAI (GPT-3.5)
 openai_client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Hugging Face (Llama)
-HF_API_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
-HF_HEADERS = {"Authorization": f"Bearer {st.secrets['HF_TOKEN']}"}
+# 2. HuggingFace Router (OpenAI-compatible)
+hf_client = openai.OpenAI(
+    api_key=st.secrets["HF_TOKEN"],
+    base_url="https://router.huggingface.co/v1"
+)
+LLAMA_MODEL = "meta-llama/Meta-Llama-3-8B-Instruct"
 
-# Perspective API (for toxicity)
-PERSPECTIVE_API_KEY = st.secrets.get("PERSPECTIVE_API_KEY", None)
-PERSPECTIVE_URL = "https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze"
+# 3. Perspective API
+PERSPECTIVE_KEY = st.secrets["PERSPECTIVE_API_KEY"]
+PERSPECTIVE_URL = (
+    "https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze"
+)
 
 # --------------------------------------------------
-# Model calling functions
+# MODEL CALLS
 # --------------------------------------------------
+
 def call_gpt35(prompt: str) -> str:
+    """Call GPT-3.5 Turbo."""
     response = openai_client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7,
-        max_tokens=200,
+        max_tokens=200
     )
     return response.choices[0].message.content.strip()
 
 
 def call_llama(prompt: str) -> str:
-    payload = {
-        "inputs": prompt,
-        "parameters": {"max_new_tokens": 200, "temperature": 0.7},
-    }
-    resp = requests.post(HF_API_URL, headers=HF_HEADERS, json=payload, timeout=60)
-    resp.raise_for_status()
-    data = resp.json()
+    """Call Llama via HuggingFace router."""
+    response = hf_client.chat.completions.create(
+        model=LLAMA_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+        max_tokens=200
+    )
+    return response.choices[0].message.content.strip()
 
-    if isinstance(data, list) and len(data) > 0:
-        if "generated_text" in data[0]:
-            return data[0]["generated_text"].strip()
-
-    return str(data)
 
 # --------------------------------------------------
-# Hallucination heuristics
+# HEURISTIC HALLUCINATION DETECTION
 # --------------------------------------------------
+
 HEDGING_PHRASES = [
-    "it is believed that",
-    "some people say",
-    "it seems that",
-    "it appears that",
-    "possibly",
-    "might",
-    "may suggest",
-    "could be",
+    "it is believed", "some people say", "it is thought",
+    "suggests that", "may indicate", "possibly", "could be",
+    "it appears", "it seems"
 ]
 
-
-def detect_hedging(text):
+def detect_hedging(text: str):
     t = text.lower()
     hits = [p for p in HEDGING_PHRASES if p in t]
     return len(hits) > 0, hits
 
-
-def detect_repetition(text):
-    sentences = [
-        s.strip()
-        for s in re.split(r"[.!?]\s+", text)
-        if s.strip()
-    ]
+def detect_repetition(text: str):
+    sentences = [s.strip() for s in re.split(r"[.!?]", text) if s.strip()]
     counts = Counter(sentences)
     repeated = [s for s, c in counts.items() if c > 1]
     return len(repeated) > 0, repeated
 
-
-def extract_entities(text):
+def extract_entities(text: str):
     ents = re.findall(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b", text)
     return set(ents)
 
-
-def detect_entity_mismatch(prompt, response):
+def detect_entity_mismatch(prompt: str, response: str):
     p_ents = extract_entities(prompt)
     r_ents = extract_entities(response)
     extra = r_ents - p_ents
     return len(extra) > 0, extra, p_ents, r_ents
 
-
-def heuristic_hallucination_score(prompt, response):
+def heuristic_hallucination_score(prompt: str, response: str):
     hedging_flag, hedging_hits = detect_hedging(response)
     repetition_flag, repeated = detect_repetition(response)
     entity_flag, extra_ents, p_ents, r_ents = detect_entity_mismatch(prompt, response)
 
-    score = sum([hedging_flag, repetition_flag, entity_flag])
+    score = hedging_flag + repetition_flag + entity_flag
 
     if score == 0:
-        label = "Low (likely grounded)"
+        label = "Low"
     elif score == 1:
         label = "Moderate"
     else:
@@ -123,90 +114,114 @@ def heuristic_hallucination_score(prompt, response):
     }
 
 # --------------------------------------------------
-# Perspective API Toxicity scoring
+# PERSPECTIVE API – Toxicity
 # --------------------------------------------------
-def score_toxicity_perspective(text) -> Optional[float]:
-    if not PERSPECTIVE_API_KEY:
-        return None
 
-    payload = {
-        "comment": {"text": text},
-        "languages": ["en"],
-        "requestedAttributes": {"TOXICITY": {}},
-    }
-
+def get_perspective_score(text: str):
     try:
+        data = {
+            "comment": {"text": text},
+            "languages": ["en"],
+            "requestedAttributes": {"TOXICITY": {}}
+        }
         resp = requests.post(
             PERSPECTIVE_URL,
-            params={"key": PERSPECTIVE_API_KEY},
-            json=payload,
-            timeout=10,
+            params={"key": PERSPECTIVE_KEY},
+            json=data,
+            timeout=10
         )
         resp.raise_for_status()
-        data = resp.json()
-        score = data["attributeScores"]["TOXICITY"]["summaryScore"]["value"]
-        return float(score)
-    except Exception:
+        toxicity = resp.json()["attributeScores"]["TOXICITY"]["summaryScore"]["value"]
+        return round(toxicity, 3)
+    except:
         return None
 
 # --------------------------------------------------
-# Combine hallucination + toxicity into final risk
+# DETOXIFY – Toxicity Model
 # --------------------------------------------------
-def overall_risk(halluc_score: int, tox_score: Optional[float]):
-    if tox_score is not None:
-        if tox_score >= 0.7:
-            return "High"
-        if tox_score >= 0.4:
-            return "Moderate"
 
-    if halluc_score >= 2:
-        return "High"
-    if halluc_score == 1:
-        return "Moderate"
-    return "Low"
+def detoxify_score(text: str):
+    try:
+        model = Detoxify("original")
+        out = model.predict(text)
+        return round(out["toxicity"], 3)
+    except:
+        return None
 
 # --------------------------------------------------
-# UI
+# UI – Model Selector
 # --------------------------------------------------
+
 model_choice = st.radio(
     "Choose model:",
     ("GPT-3.5 (OpenAI)", "Llama (Hugging Face)"),
-    horizontal=True,
+    horizontal=True
 )
 
-user_input = st.text_area("Enter your prompt", height=160)
+user_input = st.text_area("Enter your prompt", height=150)
+
+# --------------------------------------------------
+# MAIN LOGIC
+# --------------------------------------------------
 
 if user_input:
     with st.spinner("Generating response..."):
         try:
-            output = call_gpt35(user_input) if model_choice.startswith("GPT") else call_llama(user_input)
+            if model_choice.startswith("GPT"):
+                model_used = "GPT-3.5 (OpenAI)"
+                output = call_gpt35(user_input)
+            else:
+                model_used = "Llama (Hugging Face)"
+                output = call_llama(user_input)
 
-            st.subheader(f"Generated Response – {model_choice}")
+            st.subheader(f"Generated Response – {model_used}")
             st.write(output)
 
-            # ---------------- Hallucination heuristics ----------------
+            # ------------------ Heuristics ------------------
             halluc = heuristic_hallucination_score(user_input, output)
-            h_score = halluc["score"]
 
             st.subheader("Hallucination Heuristics")
-            st.write(f"**Heuristic score:** {h_score}/3 — **{halluc['label']}**")
+            st.write(f"Heuristic score: {halluc['score']}/3 — **{halluc['label']}**")
 
-            # ---------------- Toxicity scoring ----------------
+            if halluc["hedging_hits"]:
+                st.caption("Hedging phrases: " + ", ".join(halluc["hedging_hits"]))
+
+            if halluc["repeated_sentences"]:
+                st.caption(
+                    "Repeated sentences: " +
+                    " | ".join(halluc["repeated_sentences"])
+                )
+
+            if halluc["extra_entities"]:
+                st.caption(
+                    "Extra entities not in prompt: " +
+                    ", ".join(halluc["extra_entities"])
+                )
+
+            # ------------------ Ethical Risk ------------------
             st.subheader("Ethical Risk (Toxicity)")
-            tox_score = score_toxicity_perspective(output)
 
-            st.write(f"Perspective API toxicity score: **{tox_score if tox_score is not None else 'N/A'}**")
+            persp = get_perspective_score(output)
+            detox = detoxify_score(output)
 
-            final_risk = overall_risk(h_score, tox_score)
+            st.write(f"Perspective API toxicity score: {persp}")
+            st.write(f"Detoxify toxicity score: {detox}")
 
+            # ------------------ Final Combined ------------------
             st.subheader("Final Combined Risk")
 
-            if final_risk == "High":
-                st.error("🚨 **High Risk**")
-            elif final_risk == "Moderate":
-                st.warning("⚠️ **Moderate Risk**")
+            combined_score = halluc["score"] + (
+                1 if (persp and persp > 0.6) else 0
+            ) + (
+                1 if (detox and detox > 0.6) else 0
+            )
+
+            if combined_score <= 1:
+                st.success("🟢 Low Risk")
+            elif combined_score == 2:
+                st.warning("🟡 Moderate Risk")
             else:
-                st.success("🟢 **Low Risk**")
+                st.error("🔴 High Risk")
 
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Error while calling model: {e}")
