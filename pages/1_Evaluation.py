@@ -204,9 +204,6 @@ EXPECTED_PROMPT_COL = "prompt"
 # UI controls
 # --------------------------------------------------
 
-st.sidebar.title("app")
-st.sidebar.write("Evaluation")
-
 st.write("### Choose model and dataset")
 
 model_choice = st.radio(
