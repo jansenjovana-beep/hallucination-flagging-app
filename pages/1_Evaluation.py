@@ -177,7 +177,6 @@ def perspective_toxicity(text: str):
 # --------------------------------------------------
 
 DATASETS = {
-    "Tiny demo (6 prompts)": "data/eval_prompts.csv",
     "TruthfulQA": "data/truthfulqa_prompts.csv",
     "HaluEval": "data/halueval_prompts.csv",
     "RealToxicityPrompts": "data/realtoxicity_prompts.csv",
